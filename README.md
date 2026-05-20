@@ -1,4 +1,24 @@
-# Process Energy Accounting
+# Online Process Energy Prediction
+
+This project extends the ProcessEnergyAccounting framework with online and incremental machine learning techniques for process-level energy prediction.
+
+## Project Objectives
+
+1. Evaluate online learning methods against the current baseline model.
+2. Investigate workload-dependent model performance.
+3. Explore adaptive and mixture-of-experts approaches.
+4. Prepare integration into the Snakemake offloading middleware.
+
+## Current Status
+
+- [x] Baseline framework analysis
+- [x] Repository setup
+- [ ] Benchmark evaluation
+- [ ] Online learning model implementation
+- [ ] Comparative experiments
+- [ ] Middleware integration
+
+# Original Process Energy Accounting
 
 This repository collects **machine power measurements** together with **per-process runtime metrics** and stores them in **InfluxDB**. Its main purpose is to create datasets for later energy analysis and attribution.
 
