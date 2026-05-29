@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large datasets
+*.parquet
+*.tar.gz
+*.zip
+
+# Generated models
+*.pkl
+
+# Temporary outputs
+*.log
+
+# VSCode
+.vscode/
+
+# Build artifacts
+build/
+dist/
