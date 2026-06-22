@@ -1,0 +1,10 @@
+dataset: daw2
+
+data_path: baseline/process_interval_data_daw2.parquet
+
+features:
+  - delta_net_send_bytes
+  - syscall_class_other
+  - delta_instructions
+
+target: interval_energy

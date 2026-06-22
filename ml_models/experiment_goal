@@ -1,0 +1,50 @@
+Goal:
+Evaluate whether ML models improve interval-energy prediction compared with the CVXPY linear baseline.
+
+Models:
+- SGDRegressor
+- RandomForestRegressor
+- LightGBM
+
+Features:
+Use the best SFS-selected feature subset for each workload.
+
+- Stress:
+
+delta_instructions
+
+syscall_class_file
+
+- Phoronix:
+
+delta_net_send_bytes
+
+delta_cycles
+
+delta_cache_misses
+
+- DAW1:
+
+syscall_class_other
+
+delta_cpu_ns
+
+syscall_class_signal
+
+- DAW2:
+
+delta_net_send_bytes
+
+syscall_class_other
+
+delta_instructions
+
+Metrics:
+- R²
+- MAE
+- MAE (%)
+
+Datasets:
+- Stress
+- Phoronix
+- DAW

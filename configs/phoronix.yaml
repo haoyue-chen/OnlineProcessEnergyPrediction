@@ -1,0 +1,10 @@
+dataset: phoronix
+
+data_path: baseline/process_interval_data_phoronix.parquet
+
+features:
+  - delta_net_send_bytes
+  - delta_cycles
+  - delta_cache_misses
+
+target: interval_energy

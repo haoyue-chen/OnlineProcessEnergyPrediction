@@ -1,0 +1,10 @@
+dataset: daw1
+
+data_path: baseline/process_interval_data_daw1.parquet
+
+features:
+  - syscall_class_other
+  - delta_cpu_ns
+  - syscall_class_signal
+
+target: interval_energy

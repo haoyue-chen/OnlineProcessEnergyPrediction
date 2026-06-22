@@ -1,0 +1,9 @@
+dataset: stress
+
+data_path: baseline/process_interval_data_stress.parquet
+
+features:
+  - delta_instructions
+  - syscall_class_file
+
+target: interval_energy
