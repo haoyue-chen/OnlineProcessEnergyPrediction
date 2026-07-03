@@ -1,0 +1,73 @@
+# Snakefile — live offloading workflow driven by the MoE energy predictor.
+#
+# Two-phase real Snakemake DAG:
+#   1. rule plan      — build plan.json (train MoE, predict per-job energy, assign
+#                       each job to primary/secondary via the offloading policy).
+#   2. rule run_job   — one job instance per workflow job; "executes" it on its
+#                       assigned cluster and emits a record (a genuine DAG node).
+#   3. rule aggregate — collect all records into the workflow summary.
+#
+# Decision logic lives in offloading.decision / snakemake_integration.plan; this
+# Snakefile is pure orchestration, exactly how a real SWMS plugin would be wired.
+#
+# Run:
+#   cd ProcessEnergyAccounting/modeling/estimation
+#   PYTHONPATH=. snakemake -s snakemake_integration/Snakefile \
+#       --cores 4 -d snakemake_integration/.run \
+#       --config expert=linear strategy=moe jobs_per_workload=10 capacity_frac=0.15
+
+import json
+import os
+
+PY = os.environ.get("OFFLOAD_PY", "python")
+SRC = os.environ.get("OFFLOAD_SRC", os.path.abspath("."))
+
+EXPERT = config.get("expert", "linear")
+STRATEGY = config.get("strategy", "moe")
+JOBS_PER_WL = int(config.get("jobs_per_workload", 10))
+CAPACITY = float(config.get("capacity_frac", 0.15))
+SEED = int(config.get("seed", 0))
+
+
+rule all:
+    input:
+        "summary.json",
+
+
+checkpoint plan:
+    output:
+        "plan.json",
+    shell:
+        "PYTHONPATH={SRC} {PY} -m snakemake_integration.plan "
+        "--expert {EXPERT} --strategy {STRATEGY} "
+        "--jobs-per-workload {JOBS_PER_WL} --capacity-frac {CAPACITY} "
+        "--seed {SEED} --out {output}"
+
+
+rule run_job:
+    input:
+        plan="plan.json",
+    output:
+        "records/job_{job_id}.json",
+    shell:
+        "PYTHONPATH={SRC} {PY} -m snakemake_integration.run_job "
+        "--plan {input.plan} --job-id {wildcards.job_id} --out {output}"
+
+
+# After the plan checkpoint runs, expand one run_job per job id it produced.
+def all_records(wildcards):
+    plan_path = checkpoints.plan.get().output[0]
+    with open(plan_path) as fh:
+        plan = json.load(fh)
+    return [f"records/job_{j['job_id']}.json" for j in plan["jobs"]]
+
+
+rule aggregate:
+    input:
+        records=all_records,
+        plan="plan.json",
+    output:
+        "summary.json",
+    shell:
+        "PYTHONPATH={SRC} {PY} -m snakemake_integration.aggregate "
+        "--records {input.records} --plan {input.plan} --out {output}"

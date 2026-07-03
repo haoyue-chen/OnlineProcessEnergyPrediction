@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Run artifacts (regenerated, not source)
+results/
+online_state/
+online_state_push_test/
+snakemake_integration/.run*/
+snakemake_integration/summary_*.json
+snakemake_integration/plan.json
+*.tmp
+
+# Online learning runtime state (per-deployment, not source)
+online_state.pkl
+**/online_state.pkl
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Keep the trained model artifacts (moe_linear.pkl, online_base.pkl) — they ARE
+# committed so teammates can `docker build` a working image without retraining.

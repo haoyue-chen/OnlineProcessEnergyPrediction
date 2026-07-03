@@ -1,0 +1,8 @@
+# Keep the build context lean. Exclude data, results, caches, the big RF model,
+# and git — but DO include all project code (moe/, offloading/, etc.).
+results/
+models/moe_rf.pkl
+**/__pycache__/
+**/*.pyc
+.git/
+snakemake_integration/.run*/

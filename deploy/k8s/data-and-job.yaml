@@ -1,0 +1,60 @@
+# Optional: how to provide the work/ dataset to batch tasks in-cluster.
+#
+# NOTE: TEMPLATE — not applied to any cluster.
+#
+# The inference Deployment does NOT need this (the model is baked in). The batch
+# tasks (task4 / task5 / online / offload / snakemake) read the measurement data
+# from /data/work, so they need work/ mounted. Two common ways:
+#
+#   A) PersistentVolumeClaim — for a real cluster. Create the PVC, copy work/ into
+#      it once (e.g. `kubectl cp ./work <pod>:/data/work`), then mount it.
+#   B) hostPath — for a single-node local cluster (kind/minikube) where work/ is
+#      already on the node's filesystem. Simpler but node-bound; see commented block.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: energy-work-data
+spec:
+  accessModes:
+    - ReadOnlyMany      # data is read-only; many pods may read it
+  resources:
+    requests:
+      storage: 1Gi      # work/ is ~500 MB
+  # storageClassName: <your-class>   # uncomment/set for your cluster
+---
+# One-off batch task as a Job. Change args to any subcommand:
+#   ["task4","--expert","linear"] | ["task5"] | ["online"] | ["offload","--expert","linear"]
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: energy-task4
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: task
+          image: energy-offloading:latest
+          imagePullPolicy: IfNotPresent
+          args: ["task4", "--expert", "linear"]
+          volumeMounts:
+            - name: work-data
+              mountPath: /data/work
+              readOnly: true
+            - name: results
+              mountPath: /app/results
+      volumes:
+        # Option A — PVC (real cluster):
+        - name: work-data
+          persistentVolumeClaim:
+            claimName: energy-work-data
+        - name: results
+          emptyDir: {}
+        # Option B — hostPath (single-node local cluster); replace the PVC volume
+        # above with this if work/ lives on the node:
+        # - name: work-data
+        #   hostPath:
+        #     path: /absolute/path/to/MPDS/work
+        #     type: Directory

@@ -1,0 +1,9 @@
+# Snakemake run artifacts
+.run/
+.run_*/
+.snakemake/
+records/
+plan.json
+plan.done
+summary.json
+summary_*.json

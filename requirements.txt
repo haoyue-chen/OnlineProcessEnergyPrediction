@@ -1,0 +1,9 @@
+numpy==2.5.0
+scipy==1.18.0
+scikit-learn==1.9.0
+pandas==3.0.3
+pyarrow==24.0.0
+river==0.25.0
+matplotlib==3.11.0
+snakemake==9.23.1
+PyYAML==6.0.3

@@ -1,0 +1,17 @@
+services:
+  # Full-project image. Default command serves the inference API; override the
+  # command to run any task (task4 / task5 / online / offload / snakemake / all).
+  energy-offloading:
+    build: .
+    image: energy-offloading:latest
+    container_name: energy-offloading
+    ports:
+      - "8800:8800"
+    volumes:
+      # Measurement data (read-only) and a place for results to land on the host.
+      - ./../work:/data/work:ro
+      - ./results:/app/results
+    environment:
+      MODEL_PATH: /app/models/moe_linear.pkl
+      PORT: "8800"
+    restart: unless-stopped

@@ -1,0 +1,75 @@
+# Optional Kubernetes Deployment + Service for the MoE inference service.
+#
+# NOTE: this is a TEMPLATE — it has not been applied to any cluster. See README.md
+# in this directory for kubectl commands and honest scope.
+#
+# The inference `serve` mode needs only the model artifact, which is baked into
+# the energy-offloading:latest image — so the Deployment needs NO data volume.
+# The work/ dataset is only needed for the batch tasks (task4/task5/offload/…),
+# which are better run as a one-off Job (see job-task.yaml) with the data mounted.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: energy-offloading
+  labels:
+    app: energy-offloading
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: energy-offloading
+  template:
+    metadata:
+      labels:
+        app: energy-offloading
+    spec:
+      containers:
+        - name: inference
+          image: energy-offloading:latest
+          # For a local cluster (kind/minikube) load the image first; for a real
+          # cluster push to a registry and use that ref + imagePullPolicy: Always.
+          imagePullPolicy: IfNotPresent
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8800
+          env:
+            - name: MODEL_PATH
+              value: /app/models/moe_linear.pkl
+            - name: PORT
+              value: "8800"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8800
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8800
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: energy-offloading
+  labels:
+    app: energy-offloading
+spec:
+  type: ClusterIP
+  selector:
+    app: energy-offloading
+  ports:
+    - name: http
+      port: 8800
+      targetPort: 8800
