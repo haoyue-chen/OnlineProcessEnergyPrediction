@@ -70,7 +70,18 @@ class ResourceMoE:
         # 3) learn the gate weights
         if self.cfg.gate == "importance":
             from .importance import importance_weights
-            self.gate_weights = importance_weights(X, y, seed=self.cfg.random_state)
+            w = importance_weights(X, y, seed=self.cfg.random_state)
+            if np.isnan(w).any():
+                # Degenerate permutation importance (model couldn't find signal).
+                # Do NOT emit a fake uniform vector; fall back to the learned nnls
+                # gate so prediction stays valid, and record the degeneracy.
+                self._importance_degenerate = True
+                w, _ = nnls(E, y.values)
+                s = w.sum()
+                self.gate_weights = w / s if s > self.cfg.eps else np.ones(len(GROUP_ORDER)) / len(GROUP_ORDER)
+            else:
+                self._importance_degenerate = False
+                self.gate_weights = w
         else:  # learned: non-negative least squares, then normalize
             w, _ = nnls(E, y.values)
             s = w.sum()

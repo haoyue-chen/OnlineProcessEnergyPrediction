@@ -1,0 +1,50 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PORT=8801
+ENV ONLINE_BASE_PATH=models/moe_linear.pkl
+ENV ONLINE_STATE_PATH=/tmp/mpds_online_state.pkl
+ENV ONLINE_PRED_LOG=data/online_logs/predictions_live.jsonl
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    numpy \
+    pandas \
+    scipy \
+    scikit-learn \
+    pyarrow \
+    requests
+
+# Needed if CandidateModel / learned gate modules import torch.
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+COPY auto_expert/ auto_expert/
+COPY inference/ inference/
+COPY feature_moe/ feature_moe/
+COPY moe/ moe/
+COPY scripts/ scripts/
+COPY docs/ docs/
+
+# Approved serving registry and approved model.
+COPY models/latest_approved.json models/latest_approved.json
+COPY models/approved/cand-1783601596-retrain/model.pkl models/approved/cand-1783601596-retrain/model.pkl
+
+# Safe fallback base model.
+COPY models/moe_linear.pkl models/moe_linear.pkl
+
+RUN mkdir -p data/online_logs && \
+    chmod +x scripts/*.sh scripts/*.py || true
+
+EXPOSE 8801
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://localhost:8801/health || exit 1
+
+CMD ["python", "-m", "inference.online_server"]

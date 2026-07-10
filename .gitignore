@@ -23,3 +23,32 @@ online_state.pkl
 
 # Keep the trained model artifacts (moe_linear.pkl, online_base.pkl) — they ARE
 # committed so teammates can `docker build` a working image without retraining.
+
+# Runtime / generated data
+data/online_logs/
+data/training_buffer/
+data/controlled_feature_moe_more_runs/
+results/
+
+# Generated model artifacts
+models/pending/
+models/approved/
+models/latest_approved.json
+*.pkl
+*.joblib
+*.pt
+*.pth
+
+# Large datasets
+*.parquet
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local env / tools
+.CodeBuddy/
+.venv/
+venv/
+online_state_push_test/
