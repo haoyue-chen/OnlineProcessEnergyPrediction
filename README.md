@@ -1,3 +1,197 @@
+# Energy-Offloading — Feature/Workload MoE Energy Prediction & Online Learning System
+
+Predicts per-node energy consumption of scientific workflows from process-level resource metrics, and uses the predictions to drive energy-aware cross-cluster offloading decisions, with a closed-loop online learning path. Energy-aware workflow scheduling research from the TU Berlin Distributed Systems group.
+
+> **Data source**: measurement data lives under `../work/` (4 workloads: DAW1 / DAW2 / Phoronix / Stress), produced by the upstream collection project `ProcessEnergyAccounting/`; this project **only reads** it. Mounted at `/data/work` at runtime.
+
+---
+
+## What's implemented
+
+### 1. Process-level energy prediction (Phase 1, reproduction + extension)
+- Aggregate process features per interval (sum) → X, `interval_energy` → y
+- Reproduces the paper's CVXPY linear baseline, extended to a multi-model comparison (linear / rf / extra_trees / hgb (LightGBM stand-in) / knn / mlp / svr)
+- Matches the mid-term report's (`TeamGreen-MidTerm-Presentation.pdf`) baseline under 5-fold CV
+
+### 2. Workload-grouped MoE + Online Learning (Phase 2, Task 3/4/5)
+- **MoE**: a gate (RandomForest classifier) routes each interval to the expert for its workload
+- **Task 4** (MoE vs. single model): 5-fold CV, MoE improves R² by +0.10~0.17 under the linear expert
+- **Task 5** (online learning under drift): streaming workloads to induce drift, Online-MoE (ARF) reaches R² 0.93 / MAE 6.2, far ahead of frozen models
+- **6 online models compared**: linear (SGD+Adam) / pa / Hoeffding / Hoeffding-Adaptive / **Adaptive RF (strongest)** / knn
+
+### 3. Feature-based (resource-grouped) MoE (new architecture, Module 4-5)
+- Experts split by resource type (CPU / Memory / I/O / Network), gate does **weighted fusion (soft routing)**
+- Learned gate (non-negative least-squares weights) + importance gate (ablation)
+- Resource importance analysis (CPU-dominant, ~93%)
+- Honest conclusion: on CPU-dominant data, resource-MoE ≈ single (workload-MoE still strongest); value needs validating on more balanced workloads
+
+### 4. Energy-aware offloading decisions (Objective 3)
+- Energy-first greedy knapsack: offloads high-energy jobs to a greener, capacity-limited secondary cluster
+- 5 strategies compared: all_primary / random / single / moe / oracle
+- Measured: MoE saves 6.2% energy, closing 87% of the single→oracle decision gap
+
+### 5. Real Snakemake scheduling integration
+- Real Snakemake DAG: `plan` → one `run_job` per job → `aggregate`
+- Decision logic shares the same `select_offloaded` with the simulator
+- Honest boundary: the two clusters are simulated on a single machine (busy-loop scaling), not real multi-physical clusters
+
+### 6. Deployment: static inference + live online learning + closed loop
+- **Static inference** (`serve`): `/predict` only, model never changes
+- **Live online API** (`serve-online`): `/predict` + `/update`, manual curl feedback
+- **Online workflow closed loop** (`online-workflow`): job runner automatically calls `/predict` (before dispatch) + `/update` (after completion) per job, **no manual curl needed**; state is persisted and recoverable across restarts
+- Verified to be **genuine Online-MoE** (gate + 4 independent experts; updating one doesn't affect the other three)
+
+---
+
+## Project structure
+
+```
+energy-offloading/
+├── moe/                    # Workload-grouped MoE + online learning (Task 3/4/5)
+│   ├── data.py             # loads work/, aggregates per interval
+│   ├── registry.py         # model registry (7 batch + 6 online) + online-capability mapping
+│   ├── moe.py              # MixtureOfExperts (gate+experts) + SingleModel
+│   ├── run_moe_baseline.py # Task 4: MoE vs Single (5-fold CV / --time-split)
+│   ├── run_online.py       # Task 5: static vs online MoE under drift
+│   ├── compare_models.py   # full model survey
+│   └── online_baseline_comparison.py  # unified comparison table across 7 families
+├── feature_moe/            # Feature-based (resource-grouped) MoE (new architecture)
+│   ├── groups.py           # features → resource group (CPU/Mem/IO/Net)
+│   ├── importance.py       # resource importance (permutation)
+│   ├── moe.py              # ResourceMoE (4 experts + learned gate)
+│   └── run_resource_moe.py # evaluation + comparison
+├── offloading/             # energy-aware offloading decision engine
+│   ├── clusters.py         # primary/secondary cluster models
+│   ├── decision.py         # energy-first knapsack (shares select_offloaded)
+│   ├── workflow.py         # real interval→job splitting
+│   ├── run_offloading.py   # simulation runner
+│   └── online_workflow.py  # closed-loop driver: automatic /predict + /update
+├── snakemake_integration/  # real Snakemake DAG
+├── inference/              # inference service (static + online)
+│   ├── server.py           # serve: static HTTP
+│   ├── online_server.py    # serve-online: live online learning HTTP
+│   ├── predictor.py / online_predictor.py
+├── moe_export/             # exported deployable artifact
+├── deploy/                 # smoke test scripts + K8s templates
+├── results/                # experiment results (text/plots/CSV)
+├── Dockerfile / docker-compose.yml / docker-entrypoint.sh
+└── DOCKER.md               # full Docker usage docs
+```
+
+---
+
+## Usage
+
+### With Docker (recommended, one-command reproduction)
+
+```sh
+# 1. Build
+cd energy-offloading
+docker build -t energy-offloading:latest .
+
+# 2. Run any task (mount data)
+DATA=/home/hujiao/MPDS/work
+
+docker run --rm -v $DATA:/data/work:ro energy-offloading:latest task4 --expert linear
+docker run --rm -v $DATA:/data/work:ro energy-offloading:latest task5
+docker run --rm -v $DATA:/data/work:ro energy-offloading:latest offload --expert linear
+docker run --rm -v $DATA:/data/work:ro energy-offloading:latest snakemake compare
+docker run --rm -v $DATA:/data/work:ro energy-offloading:latest online       # comparison table across 7 families
+
+# new resource-MoE architecture (bypasses entrypoint)
+docker run --rm --entrypoint bash -v $DATA:/data/work:ro energy-offloading:latest \
+  -lc "PYTHONPATH=. python -m feature_moe.run_resource_moe --expert rf"
+```
+
+#### Subcommand overview
+
+| Command | What it does |
+|---|---|
+| `serve` | static inference HTTP service (port 8800) |
+| `serve-online` | **live online learning** service (`/predict` + `/update`) |
+| `online-workflow` | **closed loop**: job runner automatically calls `/predict` + `/update` |
+| `task4` | MoE vs Single Model (5-fold CV) |
+| `task5` | static vs online MoE under drift (ARF) |
+| `online` | unified online/offline comparison table across 7 families |
+| `compare` | full batch+online model survey |
+| `offload` | energy-aware offloading simulation |
+| `snakemake` | real Snakemake offloading DAG |
+| `export` / `export-online` | re-export model artifact |
+| `all` | task4 + task5 + online + offload |
+
+### Live online learning closed loop (core demo)
+
+```sh
+# start the online service, state persisted to a mounted volume
+mkdir -p ./online_state
+docker run -d --name energy-online -p 8800:8800 \
+  -e ONLINE_STATE_PATH=/app/models/state/online_state.pkl \
+  -v "$PWD/online_state:/app/models/state" \
+  energy-offloading:latest serve-online
+
+# manual closed loop
+curl -s -X POST localhost:8800/predict -H 'Content-Type: application/json' \
+  -d '{"features":{"delta_cpu_ns":5e8,"delta_instructions":2e9}}'
+# -> {"prediction_id":"...","energy_wh":268.19,"expert":"DAW1","model_version":0}
+
+# after job completion, report the true energy → incremental model update
+curl -s -X POST localhost:8800/update -H 'Content-Type: application/json' \
+  -d '{"prediction_id":"<id from above>","true_energy_wh":250.0}'
+# -> {"updated_expert":"DAW1","num_updates":1,"model_version":1}
+
+# automatic closed loop (no manual curl): predict→run→update per job
+docker run --rm -v $DATA:/data/work:ro \
+  -v "$PWD/online_state:/app/models/state" \
+  -v "$PWD/results:/app/results" \
+  energy-offloading:latest online-workflow --jobs-per-workload 5 \
+  --out /app/results/online_workflow_run.json
+```
+
+### Without Docker (plain venv)
+
+```sh
+cd energy-offloading
+PYTHONPATH=. /home/hujiao/MPDS/.venv/bin/python -m moe.run_moe_baseline --expert linear
+PYTHONPATH=. /home/hujiao/MPDS/.venv/bin/python -m feature_moe.run_resource_moe --expert rf
+# ... same pattern for the rest, replace `docker run ... <cmd>` with `PYTHONPATH=. python -m ...`
+```
+
+### One-command verification (smoke test)
+
+```sh
+./deploy/smoke_test.sh                 # static inference
+./deploy/online_smoke_test.sh          # online API (predict→update→persistence across restart)
+./deploy/online_workflow_smoke_test.sh # closed loop (automatic predict+update, restart-recoverable)
+```
+
+---
+
+## Key experimental results (persisted under `results/`)
+
+| Experiment | Result |
+|---|---|
+| Task 4 (linear) | MoE R² 0.888 vs single 0.792 (+0.10) |
+| Task 5 (ARF online) | Online-MoE R² 0.93 / MAE 6.2 vs static 0.71 / 18.3 |
+| 7-family comparison | RF/HGB 0.964 (offline ceiling), Adaptive RF 0.936 (strongest online) |
+| Offloading | MoE saves 6.2% energy, closes 87% of the single→oracle gap |
+| Resource-MoE (RF, production data) | 0.960 ≈ single (CPU-dominant, limited benefit) |
+| Resource-MoE (LORO/LOGO, controlled 18-phase data) | R² < 0 (single -1.17/-0.84, ResourceMoE -1.09/-1.40, LearnedResourceMoE -1.18/-2.06), none generalize |
+
+---
+
+## Honest boundaries
+
+- **Offloading / multi-cluster**: simulated, no real second physical cluster; cluster parameters are reasonable assumptions
+- **`true_energy_wh` in the online closed loop**: comes from measured workload data (simulating job-completion signals), not real-time runtime measurement; wiring up a real Snakemake hook / cluster monitor is a remaining production step
+- **K8s manifests** (`deploy/k8s/`): usable templates, **never actually applied** (no cluster in this environment)
+- **Resource-MoE**: implemented and sound, but shows no gain on CPU-dominant production data, workload-MoE remains strongest; a leave-one-phase-out / leave-one-group-out generalization test on a purpose-built 18-phase controlled dataset (`data/controlled_workload_labeled_final.parquet`) shows single/ResourceMoE/LearnedResourceMoE all at R²<0 — the current feature grouping and gate design don't generalize to unseen resource types (see `feature_moe/learned_feature_moe_final_summary.md`); the dataset itself has no network-dominant phase (no reachable iperf3 target), so network-dimension conclusions should be read with that gap in mind
+- **The upstream `ProcessEnergyAccounting/` repo**: never modified, only its `work/` data is read
+
+Full deployment/usage details in **`DOCKER.md`**; per-module details in each subdirectory's `README.md`.
+
+---
+---
+
 # Energy-Offloading — Feature/Workload MoE 能耗预测与在线学习系统
 
 基于进程级资源特征(Process Metrics)预测科学工作流的节点能耗,并用预测结果做能耗感知的跨集群调度决策,同时支持在线学习闭环。来自 TU Berlin 分布式系统研究组的能源感知工作流调度研究。
@@ -174,7 +368,8 @@ PYTHONPATH=. /home/hujiao/MPDS/.venv/bin/python -m feature_moe.run_resource_moe 
 | Task 5(ARF online) | Online-MoE R² 0.93 / MAE 6.2 vs 静态 0.71 / 18.3 |
 | 7 家族对比 | RF/HGB 0.964(离线上限),Adaptive RF 0.936(最强在线) |
 | Offloading | MoE 节能 6.2%,弥合 87% single→oracle 差距 |
-| Resource-MoE(RF) | 0.960 ≈ single(CPU 主导,收益有限) |
+| Resource-MoE(RF,生产数据) | 0.960 ≈ single(CPU 主导,收益有限) |
+| Resource-MoE(LORO/LOGO,controlled 18-phase 数据) | R² < 0(single -1.17/-0.84,ResourceMoE -1.09/-1.40,LearnedResourceMoE -1.18/-2.06),均不泛化 |
 
 ---
 
@@ -183,7 +378,7 @@ PYTHONPATH=. /home/hujiao/MPDS/.venv/bin/python -m feature_moe.run_resource_moe 
 - **Offloading / 多集群**:仿真,无真实第二物理集群;集群参数是合理假设
 - **在线闭环的 `true_energy_wh`**:来自实测 workload 数据(模拟 job 完成信号),非运行时实时测量;接真实 Snakemake hook / cluster monitor 是剩余生产步骤
 - **K8s manifest**(`deploy/k8s/`):可用模板,**未真正 apply**(环境无集群)
-- **Resource-MoE**:实现且 sound,但在 CPU 主导数据上不增益,workload-MoE 仍最强
+- **Resource-MoE**:实现且 sound,但在 CPU 主导生产数据上不增益,workload-MoE 仍最强;在专门构造的 18-phase controlled 数据集(`data/controlled_workload_labeled_final.parquet`)上做 leave-one-phase-out / leave-one-group-out 泛化测试,single/ResourceMoE/LearnedResourceMoE 均 R²<0,即当前特征分组和 gate 设计都无法泛化到未见过的资源类型(详见 `feature_moe/learned_feature_moe_final_summary.md`);数据集本身缺网络主导相位(无可达 iperf3 目标),网络维度结论需谨慎看待
 - **别人的 `ProcessEnergyAccounting/` 仓库**:全程未改动,仅读其 `work/` 数据
 
 完整部署/使用细节见 **`DOCKER.md`**;各模块细节见对应子目录的 `README.md`。
