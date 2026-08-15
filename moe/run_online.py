@@ -35,6 +35,7 @@ from sklearn.preprocessing import StandardScaler
 
 from . import data
 from .moe import MixtureOfExperts, MoEConfig
+import time as _time
 
 WARMUP_FRAC = 0.15  # fraction of each workload used to warm-start static models + gate
 
@@ -107,6 +108,40 @@ def run_online_moe(gate, X, y, w, is_warm, feature_names, expert_kind):
         expert.learn_one(xd, float(yv[i]))
     return preds
 
+def run_periodic_retrain_moe(gate, X, y, w, is_warm, expert_kind, retrain_every):
+    """Prequential loop for a periodic-retrain baseline: refit a batch MoE
+    every `retrain_every` post-warm-up samples; frozen in between.
+
+    Returns predictions (NaN on warm rows, matching run_online_moe) plus
+    timing stats — this is the number that answers "what does online
+    learning actually save you over just retraining periodically".
+    """
+    from .moe import MixtureOfExperts, MoEConfig
+
+    preds = np.full(len(X), np.nan, dtype=float)
+    buf_idx = list(np.where(is_warm)[0])  # buffer starts as the warm-up rows
+    model = MixtureOfExperts(MoEConfig(expert=expert_kind)).fit(
+        X.iloc[buf_idx], y.iloc[buf_idx], w.iloc[buf_idx]
+    )
+    n_since_refit, n_refits, total_refit_s = 0, 1, 0.0
+
+    for i in range(len(X)):
+        if is_warm[i]:
+            continue
+        preds[i] = model.predict(X.iloc[[i]])[0]   # predict BEFORE learning (test-then-train)
+        buf_idx.append(i)
+        n_since_refit += 1
+        if n_since_refit >= retrain_every:
+            t0 = _time.perf_counter()
+            model = MixtureOfExperts(MoEConfig(expert=expert_kind)).fit(
+                X.iloc[buf_idx], y.iloc[buf_idx], w.iloc[buf_idx]
+            )
+            total_refit_s += _time.perf_counter() - t0
+            n_since_refit = 0
+            n_refits += 1
+
+    return preds, {"n_refits": n_refits, "total_refit_seconds": total_refit_s}
+
 
 def main():
     parser = argparse.ArgumentParser(description="Static MoE vs Online MoE (Task 5)")
@@ -115,6 +150,11 @@ def main():
                         default="arf",
                         help="River online expert. 'arf' (Adaptive Random Forest) is "
                              "strongest; 'tree' is a back-compat alias for 'hatr'.")
+    parser.add_argument("--retrain-every", type=int, default=500,
+                        help="Periodic-retrain baseline: refit every N post-warm-up intervals.")
+    parser.add_argument("--periodic-expert", default="rf",
+                        help="Batch model class for the periodic-retrain baseline "
+                             "(use 'rf' to fairly compare against Online-MoE's ARF).")
     parser.add_argument("--plot", default=None, help="Optional path to save error-over-time chart")
     args = parser.parse_args()
 
@@ -142,11 +182,20 @@ def main():
     print(f"Running online MoE (expert={args.online_expert}) …")
     pred_online = run_online_moe(static_moe, X, y, w, is_warm, feats, args.online_expert)
 
-    # Evaluate everyone on the post-warm-up rows only (online preds are NaN on warm rows).
+    # --- Periodic-retrain baseline (gate + experts both refit every N samples) -
+    print(f"Running periodic-retrain baseline (expert={args.periodic_expert}, every={args.retrain_every}) …")
+    pred_periodic, stats = run_periodic_retrain_moe(
+        static_moe, X, y, w, is_warm, args.periodic_expert, args.retrain_every
+    )
+    print(f"  {stats['n_refits']} refits, {stats['total_refit_seconds']:.1f}s total refit time "
+          f"({stats['total_refit_seconds']/stats['n_refits']:.2f}s/refit)")
+
+    # Evaluate everyone on the post-warm-up rows only (online/periodic preds are NaN on warm rows).
     eval_mask = ~is_warm
     results = {
         "Static-Single": pred_single,
         "Static-MoE": pred_static_moe,
+        "Periodic-Retrain": pred_periodic,
         "Online-MoE": pred_online,
     }
     _report(y.values, w.values, eval_mask, order, results)
