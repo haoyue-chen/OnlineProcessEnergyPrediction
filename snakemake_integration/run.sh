@@ -6,14 +6,15 @@
 #   ./run.sh single               # one strategy
 #   ./run.sh compare              # run moe / single / oracle / all_primary and diff
 #
-# Requires the project venv. Override the interpreter with OFFLOAD_PY if needed.
+# Uses the ``python3`` / ``snakemake`` found on PATH (activate the project venv
+# first). Override either with OFFLOAD_PY / OFFLOAD_SNAKEMAKE if needed.
 set -euo pipefail
 
 # estimation/ is two levels up from this script (snakemake_integration/run.sh).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EST_DIR="$(cd "$HERE/.." && pwd)"
-PY="${OFFLOAD_PY:-/home/hujiao/MPDS/.venv/bin/python}"
-SNAKE="${OFFLOAD_SNAKEMAKE:-/home/hujiao/MPDS/.venv/bin/snakemake}"
+PY="${OFFLOAD_PY:-python3}"
+SNAKE="${OFFLOAD_SNAKEMAKE:-snakemake}"
 EXPERT="${EXPERT:-linear}"
 JOBS_PER_WL="${JOBS_PER_WL:-10}"
 CAPACITY="${CAPACITY:-0.15}"

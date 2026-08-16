@@ -1,8 +1,48 @@
-# Keep the build context lean. Exclude data, results, caches, the big RF model,
-# and git — but DO include all project code (moe/, offloading/, etc.).
+# Keep the build context lean. Everything the image needs stays in: the project
+# packages (moe/, feature_moe/, offloading/, snakemake_integration/, inference/,
+# moe_export/), requirements.txt, docker-entrypoint.sh, and the two model
+# artifacts models/moe_linear.pkl and models/online_base.pkl that the Dockerfile
+# copies explicitly.
+
+# Virtual environments
+.venv/
+venv/
+
+# Datasets — mounted at /data/work at run time, never baked into the image.
+datasets/
+data/
+**/*.parquet
+
+# Report sources and archives
+report_final/
+papers/
+**/*.pdf
+**/*.zip
+**/*.tar.gz
+**/*.tgz
+
+# Generated results and run artifacts
 results/
+online_state/
+online_state_push_test/
+**/online_state.pkl
+snakemake_integration/.run*/
+snakemake_integration/summary_*.json
+snakemake_integration/plan.json
+**/*.tmp
+
+# Generated or oversized model files. The two artifacts the image needs are
+# copied explicitly by the Dockerfile and must NOT be excluded here.
 models/moe_rf.pkl
+models/pending/
+models/approved/
+models/latest_approved.json
+**/*.joblib
+**/*.pt
+**/*.pth
+
+# Caches and VCS
 **/__pycache__/
 **/*.pyc
+.pytest_cache/
 .git/
-snakemake_integration/.run*/

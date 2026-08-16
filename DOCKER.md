@@ -5,13 +5,14 @@ process-energy MoE (Task 4), online learning under drift (Task 5), the online/of
 baseline comparison, the energy-aware offloading simulation, the live Snakemake
 offloading DAG, and the MoE inference HTTP service.
 
-The measurement data (`work/`, ~500 MB) is **not** baked into the image — it
-belongs to the data-collection project and is mounted read-only at run time.
+The measurement dataset is **not** baked into the image — it belongs to the
+data-collection project and is mounted read-only at `/data/work` at run time,
+which is where the image's `PEA_DATA_ROOT` points.
 
 ## Build
 
 ```sh
-cd energy-offloading
+# from the repository root
 docker build -t energy-offloading:latest .
 ```
 
@@ -21,7 +22,7 @@ The image takes a subcommand. Mount the data at `/data/work` (read-only) and,
 optionally, a host `results/` dir to capture outputs.
 
 ```sh
-DATA=/home/hujiao/MPDS/work          # adjust to your work/ path
+DATA="$PWD/datasets"                 # or any directory holding the dataset
 
 # Task 4 — MoE vs Single Model (5-fold CV)
 docker run --rm -v $DATA:/data/work:ro energy-offloading:latest task4 --expert linear
@@ -64,11 +65,12 @@ docker run --rm -v $DATA:/data/work:ro -v $PWD/results:/app/results \
 ## Inference service
 
 ```sh
-# start (docker compose reads ../work and ./results automatically)
+# start (docker compose mounts ./datasets and ./results automatically;
+#  set PEA_DATA_ROOT on the host to mount a dataset stored elsewhere)
 docker compose up -d
 # or plain docker:
 docker run -d --name energy-offloading -p 8800:8800 \
-  -v /home/hujiao/MPDS/work:/data/work:ro energy-offloading:latest serve
+  -v "$DATA:/data/work:ro" energy-offloading:latest serve
 
 curl -s localhost:8800/health
 # {"status": "ok"}
@@ -129,7 +131,7 @@ model_version_before, model_version_after, update_success`.
 ```sh
 docker run --rm \
   -e ONLINE_STATE_PATH=/app/models/state/online_state.pkl \
-  -v /home/hujiao/MPDS/work:/data/work:ro \
+  -v "$DATA:/data/work:ro" \
   -v "$PWD/online_state:/app/models/state" \
   -v "$PWD/results:/app/results" \
   energy-offloading:latest online-workflow --jobs-per-workload 5 \
@@ -215,7 +217,7 @@ state file, losing updates and corrupting learning.
 ### Rebuild the warm-started base (optional)
 
 ```sh
-docker run --rm -v /home/hujiao/MPDS/work:/data/work:ro \
+docker run --rm -v "$DATA:/data/work:ro" \
   -v "$PWD/models:/app/models" energy-offloading:latest export-online arf
 ```
 
@@ -240,7 +242,7 @@ above. It is the offline research core (Modules 4–5 of the new architecture) a
 runs directly from the project — no Docker/entrypoint change needed:
 
 ```sh
-docker run --rm -v /home/hujiao/MPDS/work:/data/work:ro \
+docker run --rm -v "$DATA:/data/work:ro" \
   energy-offloading:latest bash -c \
   "PYTHONPATH=. python -m feature_moe.run_resource_moe --expert linear"
 ```

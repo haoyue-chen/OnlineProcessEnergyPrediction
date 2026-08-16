@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import time
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -33,6 +34,9 @@ from .moe import MixtureOfExperts, MoEConfig, SingleModel
 from .registry import BATCH_MODELS, ONLINE_MODEL_NAMES, make_online_model
 
 warnings.filterwarnings("ignore")
+
+# Both comparison tables land here (relative to the working directory, as before).
+RESULTS_DIR = Path("results/moe")
 
 
 def compare_batch(datasets, cv: int, max_rows: int | None = 8000) -> pd.DataFrame:
@@ -107,6 +111,8 @@ def main():
     args = ap.parse_args()
 
     pd.set_option("display.float_format", lambda v: f"{v:.4f}")
+    # Created once, before either table is written.
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     print("Loading workloads …")
     datasets = data.load_all()
 
@@ -114,7 +120,7 @@ def main():
     if not args.online_only:
         print("\nBatch models (5-fold CV; single global vs MoE):")
         batch_df = compare_batch(datasets, args.cv)
-        batch_df.to_csv("results/moe/batch_comparison.csv", index=False)
+        batch_df.to_csv(RESULTS_DIR / "batch_comparison.csv", index=False)
         print("\n── Batch baseline comparison ─────────────────────────────────")
         print(batch_df.sort_values("single_r2", ascending=False).to_string(index=False))
         print("───────────────────────────────────────────────────────────────")
@@ -122,7 +128,7 @@ def main():
     if not args.batch_only:
         print("\nOnline models (prequential over drifting stream):")
         online_df = compare_online(datasets)
-        online_df.to_csv("results/moe/online_comparison.csv", index=False)
+        online_df.to_csv(RESULTS_DIR / "online_comparison.csv", index=False)
         print("\n── Online baseline comparison ────────────────────────────────")
         print(online_df.sort_values("r2", ascending=False).to_string(index=False))
         print("───────────────────────────────────────────────────────────────")

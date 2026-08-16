@@ -31,9 +31,9 @@ present — verified by loading it with the `moe` package removed from `sys.path
 ## Build
 
 ```sh
-cd ProcessEnergyAccounting/modeling/estimation
-python -m moe_export.export_moe --expert linear --out ../../monitor/models/moe_linear.pkl
-python -m moe_export.export_moe --expert rf     --out ../../monitor/models/moe_rf.pkl
+# from the repository root
+python -m moe_export.export_moe --expert linear --out models/moe_linear.pkl
+python -m moe_export.export_moe --expert rf     --out models/moe_rf.pkl
 ```
 
 ## Use in the monitor

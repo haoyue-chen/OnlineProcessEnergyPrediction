@@ -5,7 +5,7 @@ If no approved model exists, it falls back to the legacy base MoE artifact
 (``models/moe_linear.pkl``). It NEVER loads anything from ``models/pending/``.
 
 This wrapper supports two artifact shapes:
-  * approved ``CandidateModel`` objects (auto_expert pipeline) — exposes
+  * approved ``CandidateModel`` objects (external promotion pipeline) — exposes
     ``gate_mode`` and per-sample gate weights when available.
   * legacy ``EnergyPredictor``-style dict artifacts (``model_type == "moe"``).
 

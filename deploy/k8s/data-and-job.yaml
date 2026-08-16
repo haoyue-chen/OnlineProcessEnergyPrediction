@@ -56,5 +56,5 @@ spec:
         # above with this if work/ lives on the node:
         # - name: work-data
         #   hostPath:
-        #     path: /absolute/path/to/MPDS/work
+        #     path: /absolute/path/to/dataset
         #     type: Directory

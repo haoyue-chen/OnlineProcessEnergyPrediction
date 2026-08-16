@@ -82,7 +82,7 @@ line tracks `oracle` and sits above `random` at every capacity.
 ## Run
 
 ```sh
-cd ProcessEnergyAccounting/modeling/estimation
+# from the repository root
 python -m offloading.run_offloading --expert linear --plot results/offloading/energy_saved_linear.png
 python -m offloading.run_offloading --expert rf
 python -m offloading.run_offloading --expert linear --sweep results/offloading/capacity_sweep_linear.png

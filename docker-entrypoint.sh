@@ -2,6 +2,10 @@
 # Entry point for the full-project image. Dispatches to each deliverable so the
 # whole project can be reproduced from one container.
 #
+#   demo-offline    — Demo 1: offline prediction (global vs workload vs resource MoE)
+#   demo-online     — Demo 2: online adaptation under drift
+#   demo-offloading — Demo 3: energy-aware offloading
+#
 #   serve       — start the MoE inference HTTP service (default; port 8800)
 #   serve-online— start the LIVE online-learning service (/predict + /update; port 8800)
 #   online-workflow — closed loop: start serve-online, run a workflow that auto-calls
@@ -23,6 +27,11 @@ PY=python
 CMD="${1:-serve}"; shift || true
 
 case "$CMD" in
+  # Demo wrappers. PYTHON=python so they use the image interpreter, and
+  # PEA_DATA_ROOT stays at its image default (/data/work) unless overridden.
+  demo-offline)    PYTHON=$PY exec /app/demo/run_offline_demo.sh ;;
+  demo-online)     PYTHON=$PY exec /app/demo/run_online_demo.sh ;;
+  demo-offloading) PYTHON=$PY exec /app/demo/run_offloading_demo.sh ;;
   serve)     exec $PY -m inference.server ;;
   serve-online) exec $PY -m inference.online_server ;;
   online-workflow)

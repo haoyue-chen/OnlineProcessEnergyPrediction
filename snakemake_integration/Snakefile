@@ -11,7 +11,7 @@
 # Snakefile is pure orchestration, exactly how a real SWMS plugin would be wired.
 #
 # Run:
-#   cd ProcessEnergyAccounting/modeling/estimation
+#   cd <repository root>
 #   PYTHONPATH=. snakemake -s snakemake_integration/Snakefile \
 #       --cores 4 -d snakemake_integration/.run \
 #       --config expert=linear strategy=moe jobs_per_workload=10 capacity_frac=0.15

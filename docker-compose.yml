@@ -8,10 +8,13 @@ services:
     ports:
       - "8800:8800"
     volumes:
-      # Measurement data (read-only) and a place for results to land on the host.
-      - ./../work:/data/work:ro
+      # Dataset root (read-only) and a place for results to land on the host.
+      # Defaults to the bundled demo dataset; export PEA_DATA_ROOT on the host to
+      # mount the full measurement dataset instead.
+      - ${PEA_DATA_ROOT:-./datasets/demo}:/data/work:ro
       - ./results:/app/results
     environment:
       MODEL_PATH: /app/models/moe_linear.pkl
+      PEA_DATA_ROOT: /data/work
       PORT: "8800"
     restart: unless-stopped

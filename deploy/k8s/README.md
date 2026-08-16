@@ -84,7 +84,7 @@ kubectl apply -f deploy/k8s/data-and-job.yaml   # creates the PVC + a task4 Job
 
 **B. hostPath (single-node local cluster)** — if `work/` already lives on the
 node, swap the Job's `work-data` volume for the commented `hostPath` block in
-`data-and-job.yaml` and point it at your absolute `…/MPDS/work` path.
+`data-and-job.yaml` and point it at the absolute path of your dataset directory.
 
 Run a different task by editing the Job's `args` (e.g. `["task5"]`,
 `["offload","--expert","linear"]`) and re-applying. Watch it:

@@ -40,7 +40,7 @@ Decision logic lives only in `offloading.decision.select_offloaded` and
 ## Run
 
 ```sh
-cd ProcessEnergyAccounting/modeling/estimation
+# from the repository root
 
 # single run (strategy=moe, expert=linear)
 ./snakemake_integration/run.sh
@@ -49,8 +49,8 @@ cd ProcessEnergyAccounting/modeling/estimation
 ./snakemake_integration/run.sh compare
 
 # or call snakemake directly
-OFFLOAD_PY=/home/hujiao/MPDS/.venv/bin/python OFFLOAD_SRC=$(pwd) \
-  /home/hujiao/MPDS/.venv/bin/snakemake -s snakemake_integration/Snakefile \
+OFFLOAD_SRC=$(pwd) \
+  snakemake -s snakemake_integration/Snakefile \
   --cores 4 -d snakemake_integration/.run \
   --config expert=linear strategy=moe jobs_per_workload=10 capacity_frac=0.15
 ```

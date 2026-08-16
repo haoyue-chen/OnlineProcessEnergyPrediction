@@ -2,53 +2,65 @@
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
 
-# Run artifacts (regenerated, not source)
-results/
-online_state/
-online_state_push_test/
-snakemake_integration/.run*/
-snakemake_integration/summary_*.json
-snakemake_integration/plan.json
-*.tmp
-
-# Online learning runtime state (per-deployment, not source)
-online_state.pkl
-**/online_state.pkl
+# Virtual environments and local tooling
+.venv/
+venv/
+.CodeBuddy/
 
 # Editor / OS
 .vscode/
 .idea/
 .DS_Store
 
-# Keep the trained model artifacts (moe_linear.pkl, online_base.pkl) — they ARE
-# committed so teammates can `docker build` a working image without retraining.
-
-# Runtime / generated data
-data/online_logs/
-data/training_buffer/
-data/controlled_feature_moe_more_runs/
-results/
-
-# Generated model artifacts
-models/pending/
-models/approved/
-models/latest_approved.json
+# Model artifacts. Trained and promoted models are regenerated, not tracked.
+# The two serving artifacts the Docker image copies are re-included below.
 *.pkl
 *.joblib
 *.pt
 *.pth
+models/pending/
+models/approved/
+models/latest_approved.json
+!models/moe_linear.pkl
+!models/online_base.pkl
 
-# Large datasets
+# Datasets. Full measurement data is never tracked; only the small real-data
+# demo subset under datasets/demo/ is committed, via the exception below.
 *.parquet
+!datasets/demo/**/*.parquet
+data/online_logs/
+data/training_buffer/
+data/controlled_feature_moe_more_runs/
 
-# Python cache
-__pycache__/
-*.pyc
-.pytest_cache/
+# Generated results. Everything under results/ is regenerated output, except
+# results/reference/, which is tracked as the committed reference output.
+results/*
+!results/reference/
 
-# Local env / tools
-.CodeBuddy/
-.venv/
-venv/
-online_state_push_test/
+# Runtime state and workflow run artifacts
+online_state*
+snakemake_integration/.run*/
+summary_*.json
+plan.json
+*.tmp
+
+# Papers, report PDFs and LaTeX build artifacts
+papers/
+*.pdf
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.synctex.gz
+*.toc
+
+# Windows metadata
+*:Zone.Identifier
+
+*:Zone.Identifier

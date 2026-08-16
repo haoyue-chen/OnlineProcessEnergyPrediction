@@ -17,9 +17,15 @@ revealed to the model for updating:
 River provides the online regressors (SGD-style linear model and the Hoeffding
 adaptive tree, both from the plan's reading list).
 
+A fourth baseline — Periodic-Retrain, which refits the batch MoE every N intervals
+instead of updating it sample-by-sample — is available behind
+``--with-periodic-retrain``. It is OFF by default so the default command reproduces
+exactly the three strategies reported for Task 5.
+
 Usage:
-    python -m moe.run_online                 # text report
-    python -m moe.run_online --plot out.png  # also save the error-over-time chart
+    python -m moe.run_online                          # the three reported strategies
+    python -m moe.run_online --with-periodic-retrain  # + the periodic-retrain baseline
+    python -m moe.run_online --plot out.png           # also save the error-over-time chart
 """
 
 from __future__ import annotations
@@ -150,11 +156,17 @@ def main():
                         default="arf",
                         help="River online expert. 'arf' (Adaptive Random Forest) is "
                              "strongest; 'tree' is a back-compat alias for 'hatr'.")
+    parser.add_argument("--with-periodic-retrain", action="store_true",
+                        help="Also run the optional Periodic-Retrain baseline. OFF by "
+                             "default: the reported Task-5 table is Static-Single / "
+                             "Static-MoE / Online-MoE only.")
     parser.add_argument("--retrain-every", type=int, default=500,
-                        help="Periodic-retrain baseline: refit every N post-warm-up intervals.")
+                        help="Periodic-retrain baseline: refit every N post-warm-up "
+                             "intervals. Only used with --with-periodic-retrain.")
     parser.add_argument("--periodic-expert", default="rf",
                         help="Batch model class for the periodic-retrain baseline "
-                             "(use 'rf' to fairly compare against Online-MoE's ARF).")
+                             "(use 'rf' to fairly compare against Online-MoE's ARF). "
+                             "Only used with --with-periodic-retrain.")
     parser.add_argument("--plot", default=None, help="Optional path to save error-over-time chart")
     args = parser.parse_args()
 
@@ -183,21 +195,26 @@ def main():
     pred_online = run_online_moe(static_moe, X, y, w, is_warm, feats, args.online_expert)
 
     # --- Periodic-retrain baseline (gate + experts both refit every N samples) -
-    print(f"Running periodic-retrain baseline (expert={args.periodic_expert}, every={args.retrain_every}) …")
-    pred_periodic, stats = run_periodic_retrain_moe(
-        static_moe, X, y, w, is_warm, args.periodic_expert, args.retrain_every
-    )
-    print(f"  {stats['n_refits']} refits, {stats['total_refit_seconds']:.1f}s total refit time "
-          f"({stats['total_refit_seconds']/stats['n_refits']:.2f}s/refit)")
+    # Opt-in only: it is not part of the reported Task-5 table. It runs last, so
+    # enabling it cannot perturb the three baselines computed above.
+    pred_periodic = None
+    if args.with_periodic_retrain:
+        print(f"Running periodic-retrain baseline (expert={args.periodic_expert}, every={args.retrain_every}) …")
+        pred_periodic, stats = run_periodic_retrain_moe(
+            static_moe, X, y, w, is_warm, args.periodic_expert, args.retrain_every
+        )
+        print(f"  {stats['n_refits']} refits, {stats['total_refit_seconds']:.1f}s total refit time "
+              f"({stats['total_refit_seconds']/stats['n_refits']:.2f}s/refit)")
 
     # Evaluate everyone on the post-warm-up rows only (online/periodic preds are NaN on warm rows).
     eval_mask = ~is_warm
     results = {
         "Static-Single": pred_single,
         "Static-MoE": pred_static_moe,
-        "Periodic-Retrain": pred_periodic,
-        "Online-MoE": pred_online,
     }
+    if pred_periodic is not None:
+        results["Periodic-Retrain"] = pred_periodic  # keeps the original row position
+    results["Online-MoE"] = pred_online
     _report(y.values, w.values, eval_mask, order, results)
     if args.plot:
         _plot(y.values, w.values, eval_mask, order, results, args.plot)

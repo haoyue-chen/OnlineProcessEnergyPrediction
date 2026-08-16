@@ -36,8 +36,8 @@ from .online_predictor import OnlinePredictor
 BASE_PATH = os.environ.get("ONLINE_BASE_PATH", "/app/models/online_base.pkl")
 STATE_PATH = os.environ.get("ONLINE_STATE_PATH", "/app/models/online_state.pkl")
 PORT = int(os.environ.get("PORT", "8800"))
-# Optional prediction logging for the auto-expert pipeline. Unset -> no logging,
-# so default behaviour is unchanged. Set to a .jsonl path to enable.
+# Accepted for backward compatibility with existing deployment scripts; the
+# logging backend is not part of this submission, so the value is ignored.
 PRED_LOG = os.environ.get("ONLINE_PRED_LOG", "")
 
 # /predict source of truth: only approved models (with safe base fallback).
@@ -53,24 +53,12 @@ except Exception:
 
 
 def _safe_log_prediction(features: dict, result: dict) -> None:
-    """Log a prediction if ONLINE_PRED_LOG is set. Never raises — logging must
-    not break serving. Falls back to a no-op if auto_expert isn't importable
-    (e.g. a slim inference-only container)."""
-    if not PRED_LOG:
-        return
-    try:
-        from auto_expert.logging import log_prediction
-        log_prediction(
-            log_path=PRED_LOG,
-            request_id=result.get("prediction_id"),
-            features=features,
-            prediction=result.get("energy_wh"),
-            model_version=result.get("model_version"),
-            expert=result.get("expert"),
-            gate_weights=result.get("gate_weights"),
-        )
-    except Exception:
-        pass
+    """Prediction-logging hook. Never raises — logging must not break serving.
+
+    The external logging backend is not part of this submission, so this is a
+    no-op; ONLINE_PRED_LOG is accepted and ignored.
+    """
+    return
 
 
 class Handler(BaseHTTPRequestHandler):

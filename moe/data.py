@@ -1,10 +1,11 @@
 """Shared data layer for the Mixture-of-Experts energy estimation experiments.
 
 The raw datasets are per-process, per-interval rows (one parquet per workload run,
-collected in ``work/``). The energy target ``interval_energy`` is a node-level
-value repeated across every process row of the same ``_time``. To frame this as a
-supervised problem we aggregate per interval: process features are summed over the
-interval, and the target is the (single) node energy for that interval.
+collected under the dataset root — see ``_WORK_ROOT`` below). The energy target
+``interval_energy`` is a node-level value repeated across every process row of the
+same ``_time``. To frame this as a supervised problem we aggregate per interval:
+process features are summed over the interval, and the target is the (single) node
+energy for that interval.
 
 This mirrors the framing already used by the linear CVXPY baseline
 (``feature_selection.py`` / ``cvxpy_estimator.py``) so results are comparable.
@@ -13,17 +14,23 @@ This mirrors the framing already used by the linear CVXPY baseline
 from __future__ import annotations
 
 import glob
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-# Project root (…/MPDS/energy-offloading) and the data root (…/MPDS/work).
-# The data lives in the sibling ``work/`` directory produced by the separate
-# data-collection project (ProcessEnergyAccounting); this project only reads it.
+# Dataset root. The measurement data is produced by the separate data-collection
+# project (ProcessEnergyAccounting); this project only reads it. By default we
+# look for ``datasets/`` inside the repository checkout; set the ``PEA_DATA_ROOT``
+# environment variable to read the data from anywhere else (the Docker image sets
+# ``PEA_DATA_ROOT=/data/work``, where the host dataset is mounted read-only).
+# The expected layout is unchanged:
+#   <root>/<run_dir>/runs/<run_id>/datasets/process_interval_data.parquet
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_WORK_ROOT = _PROJECT_ROOT.parent / "work"
+_DEFAULT_DATA_ROOT = _PROJECT_ROOT / "datasets"
+_WORK_ROOT = Path(os.environ.get("PEA_DATA_ROOT", _DEFAULT_DATA_ROOT))
 
 TARGET = "interval_energy"
 TIME = "_time"

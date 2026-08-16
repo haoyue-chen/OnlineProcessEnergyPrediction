@@ -2,8 +2,9 @@
 # Task 4/5, online baseline comparison, offloading simulation, the live Snakemake
 # DAG, and the MoE inference service. One image, dispatched via docker-entrypoint.sh.
 #
-# Measurement data (work/, ~500 MB) is NOT baked in — it belongs to the separate
-# data-collection project and is mounted read-only at /data/work at run time.
+# The measurement dataset (~500 MB) is NOT baked into the image — it belongs to
+# the separate data-collection project and is mounted read-only at /data/work at
+# run time, which is where PEA_DATA_ROOT points.
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -12,6 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     MODEL_PATH=/app/models/moe_linear.pkl \
+    PEA_DATA_ROOT=/data/work \
     PORT=8800
 
 # git is needed by snakemake's workflow tooling; build-essential kept minimal.
@@ -30,14 +32,15 @@ COPY feature_moe/ /app/feature_moe/
 COPY offloading/ /app/offloading/
 COPY snakemake_integration/ /app/snakemake_integration/
 COPY inference/ /app/inference/
+COPY demo/ /app/demo/
 COPY models/moe_linear.pkl /app/models/moe_linear.pkl
 COPY models/online_base.pkl /app/models/online_base.pkl
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh /app/snakemake_integration/run.sh
+RUN chmod +x /app/docker-entrypoint.sh /app/snakemake_integration/run.sh /app/demo/*.sh
 
-# data.py resolves work/ as a sibling of the project dir; with /app as the project
-# we expect the data mounted at /data/work, so symlink it in.
-RUN ln -s /data/work /work
+# data.py reads the dataset root from PEA_DATA_ROOT (set to /data/work above).
+# Create the mount point so the container also starts without a data volume.
+RUN mkdir -p /data/work
 WORKDIR /app
 
 EXPOSE 8800

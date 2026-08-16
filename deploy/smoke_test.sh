@@ -3,15 +3,15 @@
 # docker compose, and the inference HTTP endpoints. Fails fast on any error.
 #
 # Usage:
-#   ./deploy/smoke_test.sh                 # uses ../work for data, port 8800
-#   DATA=/path/to/work PORT=8801 ./deploy/smoke_test.sh
+#   ./deploy/smoke_test.sh                 # uses datasets/demo, port 8800
+#   DATA=/path/to/dataset PORT=8801 ./deploy/smoke_test.sh
 set -euo pipefail
 
 # Resolve paths relative to this script (deploy/ is one level under the project).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ="$(cd "$HERE/.." && pwd)"
 IMAGE="${IMAGE:-energy-offloading:latest}"
-DATA="${DATA:-$(cd "$PROJ/../work" && pwd)}"
+DATA="${DATA:-$PROJ/datasets/demo}"
 PORT="${PORT:-8800}"
 NAME="energy-smoke"
 
